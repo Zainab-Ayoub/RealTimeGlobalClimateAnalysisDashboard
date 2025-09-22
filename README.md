@@ -40,11 +40,9 @@ Then open `http://127.0.0.1:8000/`.
 ## Screenshots
 Add three images into `docs/screenshots/` (for example, `home.png`, `indicator.png`, `map.png`) and commit them. Reference them in Markdown like this:
 
-```markdown
 ![Home](docs/screenshots/home.png)
 ![Indicator](docs/screenshots/sea_ice.png)
 ![Map](docs/screenshots/ocean_heat.png)
-```
 
 ## Notes
 - This project aggregates publicly available climate indicators and provides live updates plus short-term forecasts using PyTorch.
