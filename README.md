@@ -38,7 +38,6 @@ Then open `http://127.0.0.1:8000/`.
 - `.env` (optional): API keys or configuration overrides
 
 ## Screenshots
-Add three images into `docs/screenshots/` (for example, `home.png`, `indicator.png`, `map.png`) and commit them. Reference them in Markdown like this:
 
 ![Home](docs/screenshots/home.png)
 ![Indicator](docs/screenshots/sea_ice.png)
