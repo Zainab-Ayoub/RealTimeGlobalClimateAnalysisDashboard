@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Global Climate Dashboard</title>
+    <link rel="stylesheet" href="/static/theme.css" />
+    <style>
+      .grid.cards { grid-template-columns: repeat(4, 1fr); }
+      .thumb { width: 100%; height: 96px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); background: #f6f8fc; display:block; image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; }
+      .spark { width: 100%; height: 60px; margin-top: 8px; }
+      @media (max-width: 1100px) { .grid.cards { grid-template-columns: repeat(3, 1fr); } }
+      @media (max-width: 840px) { .grid.cards { grid-template-columns: repeat(2, 1fr); } }
+      @media (max-width: 560px) { .grid.cards { grid-template-columns: 1fr; } }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+    <script>
+      function attachThumbFallback(imgEl, key){
+        const candidates = [
+          { src: `/static/thumbs/${key}.jpg`,       srcset: `/static/thumbs/${key}@2x.jpg 2x, /static/thumbs/${key}.jpg 1x` },
+          { src: `/static/${key}.jpg`,              srcset: `/static/${key}@2x.jpg 2x, /static/${key}.jpg 1x` },
+          { src: `/static/${key}.png`,              srcset: `/static/${key}@2x.png 2x, /static/${key}.png 1x` },
+          { src: `/static/maps/${key}.jpg`,         srcset: `/static/maps/${key}@2x.jpg 2x, /static/maps/${key}.jpg 1x` },
+          { src: `/static/maps/${key}.png`,         srcset: `/static/maps/${key}@2x.png 2x, /static/maps/${key}.png 1x` },
+          // Files literally named with '%402x' (URL-decoding would turn %40 -> '@'). Use %2540 to request a literal '%40'.
+          { src: `/static/maps/${key}%25402x.jpg`,  srcset: `/static/maps/${key}%25402x.jpg 2x, /static/maps/${key}.jpg 1x` },
+          { src: `/static/${key}%25402x.jpg`,       srcset: `/static/${key}%25402x.jpg 2x, /static/${key}.jpg 1x` },
+          { src: `/static/thumbs/${key}%25402x.jpg`,srcset: `/static/thumbs/${key}%25402x.jpg 2x, /static/thumbs/${key}.jpg 1x` },
+        ];
+        let idx = 0;
+        function tryNext(){
+          if (idx >= candidates.length){ imgEl.style.display = 'none'; return; }
+          imgEl.onerror = tryNext;
+          imgEl.srcset = candidates[idx].srcset;
+          imgEl.src = candidates[idx].src;
+          idx += 1;
+        }
+        imgEl.onerror = tryNext;
+      }
+
+      async function load() {
+        const [catalogRes, allRes] = await Promise.all([ fetch('/api/catalog'), fetch('/api/indicators') ]);
+        const { indicators } = await catalogRes.json();
+        const allSeries = await allRes.json();
+
+        const items = indicators.slice(0, 8);
+        const grid = document.getElementById('cards');
+        grid.innerHTML = '';
+
+        for (const it of items) {
+          const card = document.createElement('a');
+          card.className = 'card';
+          card.href = `/indicator?key=${encodeURIComponent(it.key)}`;
+          const base = `/static/thumbs/${it.key}.jpg`;
+          const retina = `/static/thumbs/${it.key}@2x.jpg`;
+          card.innerHTML = `
+            <img class=\"thumb\" id=\"thumb-${it.key}\" alt=\"${it.name}\" src=\"${base}\" srcset=\"${retina} 2x, ${base} 1x\" loading=\"lazy\" />
+            <div class=\"badge\">${it.unit}</div>
+            <h3 class=\"serif\" style=\"margin:6px 0 6px 0; font-size:16px; font-weight:700; color:var(--text)\">${it.name}</h3>
+            <div class=\"spark\" id=\"spark-${it.key}\"></div>
+            <p style=\"margin:6px 0 10px 0; font-size:13px; color:#5b6378; min-height:38px;\">${it.description}</p>
+            <div style=\"display:flex;align-items:center;gap:6px;color:#005ea2;font-size:13px;\">Learn more →</div>
+          `;
+          grid.appendChild(card);
+
+          const img = card.querySelector(`#thumb-${it.key}`);
+          attachThumbFallback(img, it.key);
+
+          const el = card.querySelector(`#spark-${it.key}`);
+          const chart = echarts.init(el, null, { renderer: 'svg' });
+          const series = (allSeries[it.key] || []).map(p => [p.t, p.v]);
+          const accent = '#005ea2';
+          chart.setOption({
+            grid: { left: 0, right: 0, top: 8, bottom: 4 },
+            xAxis: { type: 'time', axisLabel: { show:false }, axisTick:{show:false}, axisLine:{show:false}, splitLine:{show:false} },
+            yAxis: { type: 'value', axisLabel: { show:false }, axisTick:{show:false}, axisLine:{show:false}, splitLine:{show:false} },
+            series: [{ type: 'line', data: series, showSymbol: false, lineStyle: { width: 1.5, color: accent }, areaStyle: { opacity: 0.08, color: accent } }],
+            animation: false,
+          });
+        }
+      }
+      document.addEventListener('DOMContentLoaded', load);
+    </script>
+  </head>
+  <body>
+    <header>
+      <div class="container">
+        <h1 class="serif">Global Climate Dashboard</h1>
+        <div class="sub">Tracking climate change and natural variability over time.</div>
+      </div>
+    </header>
+    <main class="container">
+      <div class="grid cards" id="cards">Loading…</div>
+    </main>
+    <footer class="footer">
+      <div class="container">
+        Inspired by NOAA's Global Climate Dashboard: <a href="https://www.climate.gov/climatedashboard" target="_blank" rel="noreferrer">climate.gov/climatedashboard</a>
+      </div>
+    </footer>
+  </body>
+</html>

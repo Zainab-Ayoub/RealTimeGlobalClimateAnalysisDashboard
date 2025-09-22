@@ -1,0 +1,26 @@
+:root{
+  --bg:#ffffff; --text:#1a1f36; --muted:#5b6378; --brand:#005ea2; --border:#e5e8ef;
+}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--text)}
+body{font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Liberation Sans", sans-serif;}
+.serif{font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif}
+.container{max-width:1120px;margin:0 auto;padding:0 16px}
+header{padding:18px 0;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg);z-index:10}
+h1,h2,h3{letter-spacing:-0.01em}
+h1{font-size:28px;margin:0;font-weight:700}
+h2{font-size:22px;margin:6px 0 10px;color:#2a3b70}
+.sub{color:var(--muted);margin-top:6px;font-size:14px}
+.section-title{font-size:12px;color:var(--muted);margin:28px 0 10px;text-transform:uppercase;letter-spacing:.12em}
+.card{background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px;transition:box-shadow .15s ease, transform .15s ease}
+.card:hover{box-shadow:0 6px 18px rgba(0,0,0,.08);transform:translateY(-2px)}
+.badge{display:inline-block;background:#eef6ff;color:#0b63ce;border:1px solid #cde5ff;padding:2px 8px;border-radius:999px;font-size:11px;margin-bottom:8px}
+a{color:var(--brand);text-decoration:none}
+.grid{display:grid;gap:16px}
+.panel{background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px}
+.textblock{font-size:15px;line-height:1.6;color:#2a2f44}
+.textblock p{margin:0 0 12px 0}
+.controls{display:flex;gap:8px;align-items:center;margin-bottom:8px;font-size:13px;color:var(--muted)}
+select,input[type=date]{border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-size:13px}
+button{background:#0b63ce;color:#fff;border:1px solid #0b63ce;padding:8px 12px;border-radius:8px;cursor:pointer}
+button:hover{background:#0a5ab9}
+.footer{padding:20px 0;color:var(--muted);font-size:12px;border-top:1px solid var(--border);margin-top:24px}

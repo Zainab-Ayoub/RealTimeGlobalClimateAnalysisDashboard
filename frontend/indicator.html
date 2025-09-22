@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Indicator</title>
+    <link rel="stylesheet" href="/static/theme.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+    <style>
+      :root { --bg:#fff; --text:#1a1f36; --muted:#5b6378; --brand:#005ea2; --border:#e5e8ef; }
+      html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); }
+      body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Liberation Sans", sans-serif; }
+      .serif { font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif; }
+      header { padding: 18px 0; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg); z-index: 10; }
+      .container { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+      .row { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+      a { color: var(--brand); text-decoration: none; }
+      .grid { display:grid; grid-template-columns: 3fr 2fr; gap:18px; padding: 16px 0; }
+      .panel { background: #fff; border:1px solid var(--border); border-radius:10px; padding:12px; }
+      #chart { height: 440px; }
+      #map { height: 440px; }
+      .desc { color: var(--muted); font-size: 14px; margin-top: 8px; }
+      .controls { display:flex; gap:8px; align-items:center; margin-bottom:8px; font-size: 13px; color: var(--muted); }
+      select, input[type="date"] { border:1px solid var(--border); border-radius:8px; padding:6px 8px; font-size:13px; }
+      button { background:#0b63ce; color:#fff; border:1px solid #0b63ce; padding:8px 12px; border-radius:8px; cursor:pointer; }
+      button:hover { background:#0a5ab9; }
+      .note { font-size:12px; color: var(--muted); margin-top:6px; }
+      h2 { font-size:22px; letter-spacing:-0.01em; margin: 4px 0 10px; color:#2a3b70; }
+      .textblock { font-size:15px; line-height:1.6; color:#2a2f44; }
+      .textblock p { margin: 0 0 12px 0; }
+      .grid-main { display:grid; grid-template-columns: 3fr 2fr; gap:18px; padding: 16px 0; }
+      .grid-text { display:grid; grid-template-columns: 1fr 1fr; gap:18px; padding: 0 0 16px 0; }
+      #imageWrap { position: relative; height: 440px; display:none; }
+      #mapImage { width:100%; height:100%; max-width:100%; max-height:100%; object-fit: contain; image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; border:1px solid var(--border); border-radius:10px; }
+      @media (max-width: 900px) { .grid, .grid-main, .grid-text { grid-template-columns: 1fr; } }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  </head>
+  <body>
+    <header>
+      <div class="container row">
+        <div>
+          <a href="/">Home</a>
+          <span class="sub"> / Indicator</span>
+        </div>
+        <div class="serif" id="title" style="font-weight:700; font-size:22px;">Indicator</div>
+        <button id="btn-forecast">Run 12‑mo Forecast</button>
+      </div>
+    </header>
+    <div class="container">
+      <div class="desc" id="desc"></div>
+      <div class="grid-main">
+        <div class="panel">
+          <h2 id="chartTitle">Chart</h2>
+          <div id="chart"></div>
+        </div>
+        <div class="panel">
+          <h2 id="mapTitle">Map</h2>
+          <div class="controls">
+            <label>View:</label>
+            <select id="mapView">
+              <option value="image">Illustration</option>
+              <option value="interactive">Interactive</option>
+            </select>
+            <label style="margin-left:8px">Overlay:</label>
+            <select id="overlay"></select>
+            <label>Date:</label>
+            <input id="overlayDate" type="date" />
+          </div>
+          <div id="imageWrap"><img id="mapImage" alt="Indicator map illustration" /></div>
+          <div id="map" style="position:relative"></div>
+          <div id="legend" class="note" style="position:absolute; right:12px; bottom:12px; background:rgba(255,255,255,0.9); border:1px solid var(--border); border-radius:6px; padding:6px 8px; display:none">
+            <div id="legendTitle" style="font-size:12px; color:#2a2f44; margin-bottom:4px"></div>
+            <div id="legendScale" style="width:180px; height:10px; background:linear-gradient(90deg,#2b6cb0,#90cdf4,#fefefe,#f6ad55,#dd6b20); border-radius:4px"></div>
+            <div style="display:flex; justify-content:space-between; font-size:11px; color:#5b6378; margin-top:2px"><span id="legendMin">cold</span><span id="legendMid">0</span><span id="legendMax">warm</span></div>
+          </div>
+          <div class="note">Map imagery from NASA GIBS. Some overlays require recent dates; pick a date in the last few days if tiles are blank.</div>
+        </div>
+      </div>
+      <div class="grid-text">
+        <div class="panel textblock" id="leftText"></div>
+        <div class="panel textblock" id="rightText">
+          <figure style="margin:0">
+            <img id="galleryImg" alt="" style="width:100%; border-radius:8px; border:1px solid var(--border)" />
+            <figcaption id="galleryCaption" class="note" style="margin-top:8px"></figcaption>
+          </figure>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const CONTENT = {
+        ao: {
+          chartTitle: 'Arctic Oscillation (AO)',
+          mapTitle: 'AO Pressure Patterns',
+          yName: 'AO Index',
+          leftText: `Monthly values for the Arctic Oscillation (AO) describe shifts in surface air pressure between the mid‑latitudes and the Arctic. During the positive phase, the jet stream tends to stay farther north and winters across the mid‑latitudes are often milder. During the negative phase, the jet stream dips south and cold outbreaks are more likely. Data inspired by NOAA PSL/Climate.gov.`,
+          rightText: `Winter pressure patterns across the Northern Hemisphere differ between negative and positive AO phases. Negative AO is linked to stronger high‑latitude pressure and cold anomalies farther south; positive AO is linked to the opposite. The map panel highlights the typical regions affected.`
+        },
+        sea_ice: {
+          chartTitle: 'Arctic Sea Ice Yearly Minimum',
+          mapTitle: 'Recent Summer Minimum (Concentration)',
+          yName: 'million km²',
+          leftText: `The September minimum extent of Arctic sea ice has trended downward since satellite monitoring began in 1979. Many of the lowest minimums on record have occurred since 2007. Values represent the total area with at least 15% ice concentration. Data inspired by NSIDC/Climate.gov.`,
+          rightText: `Sea ice concentration for late summer shows a smaller area of high ice fraction compared to the 1981‑2010 median extent. The Arctic Circle overlay highlights the high‑latitude focus of change.`
+        },
+        co2: {
+          chartTitle: 'Atmospheric Carbon Dioxide',
+          mapTitle: 'Global Basemap',
+          yName: 'ppm',
+          leftText: `Monthly averages of atmospheric CO₂ measured at Mauna Loa and elsewhere have risen steadily from under 320 ppm in the late 1950s to well above 420 ppm today. The 12‑month running mean recently exceeded 425 ppm. Data inspired by NOAA GML and NASA GISS.`,
+          rightText: `Ice‑core records show that over the past 800,000 years, CO₂ stayed below about 300 ppm through multiple ice ages and warm periods. The modern rise to over 420 ppm stands out as exceptionally rapid in geological context.`
+        },
+        glaciers: {
+          chartTitle: 'Glacier Mass Balance (Yearly)',
+          mapTitle: 'Relief and Glacier Regions',
+          yName: 'meters water eq.',
+          leftText: `Reference glaciers have lost more than two dozen meters of water‑equivalent thickness since 1970. The cumulative curve illustrates sustained mass loss across the network. Data inspired by WGMS/Climate.gov.`,
+          rightText: `Paired photographs and maps show dramatic glacier retreat over recent decades as ice fronts have pulled back up valleys. Relief layers help orient major mountain ranges that host monitored glaciers.`
+        },
+        ghg: {
+          chartTitle: 'Annual Greenhouse Gas Index (AGGI)',
+          mapTitle: 'Global Basemap',
+          yName: 'index (1990=1)',
+          leftText: `The AGGI tracks the combined heating influence of long‑lived greenhouse gases. The index has increased by roughly 51% since 1990, reflecting growth in CO₂, methane, nitrous oxide, and halogenated gases. Data inspired by NOAA ESRL/Climate.gov.`,
+          rightText: `Stacked contributions show that CO₂ provides the largest share of the total forcing, with methane the second largest, and other gases adding smaller but important amounts.`
+        },
+        nao: {
+          chartTitle: 'North Atlantic Oscillation (NAO)',
+          mapTitle: 'NAO Temperature Patterns',
+          yName: 'NAO Index',
+          leftText: `The NAO compares the relative strength of persistent high and low pressure patterns across the North Atlantic. Positive winters in the NAO are associated with milder conditions in parts of Europe and the eastern U.S.; negative winters favor stronger cold‑air outbreaks and storminess in the East. Data inspired by NOAA CPC/Climate.gov.`,
+          rightText: `Maps of temperature differences during strongly negative and positive NAO winters show cooler‑than‑average versus warmer‑than‑average regions across the North Atlantic sector.`
+        },
+        ocean_heat: {
+          chartTitle: 'Ocean Heat Compared to Average',
+          mapTitle: 'Ocean Heat/SST Context',
+          yName: '10²² Joules (anomaly)',
+          leftText: `Upper‑ocean heat content has been predominantly above the 1955‑2006 average since the mid‑1990s and has risen to new highs in recent years. Data inspired by NOAA NCEI/Climate.gov.`,
+          rightText: `Trend maps reveal where the ocean has gained or lost heat over recent decades. Warm colors highlight regions of net heat gain, gray shading indicates small trends relative to variability.`
+        },
+        oni: {
+          chartTitle: 'Oceanic Niño Index (ONI)',
+          mapTitle: 'ONI Temperature Patterns',
+          yName: '°C',
+          leftText: `The ONI tracks the 3‑month running mean sea‑surface temperature anomaly in the Niño 3.4 region (5°N‑5°S, 170°W‑120°W). Sustained values ≥ +0.5°C indicate El Niño; ≤ −0.5°C indicate La Niña. Data inspired by NOAA CPC/Climate.gov.`,
+          rightText: `During El Niño, the east‑central tropical Pacific is warmer than average; during La Niña it is cooler. These shifts alter tropical convection and can influence global weather patterns.`
+        },
+        temp: {
+          chartTitle: 'Global Surface Temperature Anomaly',
+          mapTitle: 'Land Surface Temperature / Basemap',
+          yName: '°C',
+          leftText: `Global surface temperatures have increased markedly since the late 19th century, with the rate of warming accelerating in recent decades. Monthly anomalies are relative to a 20th‑century baseline. Data inspired by NASA GISTEMP/Climate.gov.`,
+          rightText: `Land surface temperature and basemap layers provide spatial context for recent warmth and regional differences in change.`
+        }
+      };
+
+      const qs = new URLSearchParams(location.search);
+      const key = qs.get('key') || 'co2';
+      const meta = CONTENT[key] || CONTENT['co2'];
+
+      document.getElementById('chartTitle').textContent = meta.chartTitle;
+      document.getElementById('mapTitle').textContent = meta.mapTitle;
+      document.getElementById('leftText').innerHTML = `<p>${meta.leftText}</p>`;
+      document.getElementById('rightText').innerHTML = `<p>${meta.rightText}</p>`;
+
+      const chart = echarts.init(document.getElementById('chart'), null, { renderer:'svg' });
+      const ACCENT = { ao:'#1f4e79', sea_ice:'#1f4e79', co2:'#1f4e79', glaciers:'#1f4e79', ghg:'#1f4e79', nao:'#1f4e79', ocean_heat:'#1f4e79', oni:'#1f4e79', temp:'#1f4e79' };
+      const accent = ACCENT[key] || '#1f4e79';
+      const isBar = (key === 'ao' || key === 'nao' || key === 'oni' || key === 'ocean_heat');
+      const axisStyle = { color:'#2a2f44', fontSize:12, fontWeight:600 };
+      const splitLine = { lineStyle:{ color:'#e5e8ef' } };
+      chart.setOption({
+        tooltip:{trigger:isBar ? 'item' : 'axis'},
+        grid:{left:60,right:20,top:20,bottom:40},
+        xAxis:{type:'time', axisLabel:axisStyle, splitLine: splitLine},
+        yAxis:{type:'value', name: meta.yName, axisLabel:axisStyle, splitLine: splitLine},
+        series: isBar
+          ? [{ type:'bar', data:[], itemStyle:{ color: (p)=> p.value[1] >= 0 ? '#c4521b' : '#4663b9' }, barWidth: '60%' }]
+          : [{ type:'line', showSymbol:false, data:[], lineStyle:{ width:2.5, color:accent } }],
+        backgroundColor:'transparent'
+      });
+
+      // Leaflet map
+      const map = L.map('map', { zoomControl: true }).setView([20, 0], 2);
+      const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'© OpenStreetMap' }).addTo(map);
+      const toner = L.tileLayer('https://stamen-tiles.a.ssl.fastly.net/toner-lite/{z}/{x}/{y}.png', { attribution:'Map tiles by Stamen' });
+      const esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', { attribution:'© Esri' });
+      L.control.layers({ OSM: osm, 'Toner Lite': toner, 'Esri Topo': esri }).addTo(map);
+
+      // NASA GIBS WMTS helper
+      const GIBS_TM = 'GoogleMapsCompatible_Level9';
+      function gibsLayer(layer, date, format='jpg') {
+        const t = date || 'best';
+        const url = `https://gibs-{s}.earthdata.nasa.gov/wmts/epsg3857/best/${layer}/default/${t}/${GIBS_TM}/{z}/{y}/{x}.${format}`;
+        return L.tileLayer(url, { subdomains: 'abc', maxZoom: 9, attribution: 'NASA GIBS' });
+      }
+
+      // Per-indicator overlay suggestions
+      const overlayCatalog = {
+        'sea_ice': [
+          { id:'AMSR2_Sea_Ice_Concentration', name:'Sea Ice Concentration', fmt:'png' },
+          { id:'MODIS_Terra_Sea_Ice', name:'Sea Ice MODIS (Day)', fmt:'png' },
+          { id:'BlueMarble_ShadedRelief', name:'Blue Marble', fmt:'jpg' },
+        ],
+        'oni': [
+          { id:'GHRSST_L4_MUR_Sea_Surface_Temperature', name:'Sea Surface Temperature (MUR)', fmt:'png' },
+          { id:'MODIS_Terra_Sea_Surface_Temp_Day', name:'SST (MODIS Day)', fmt:'png' },
+          { id:'BlueMarble_ShadedRelief', name:'Blue Marble', fmt:'jpg' },
+        ],
+        'ocean_heat': [
+          { id:'GHRSST_L4_MUR_Sea_Surface_Temperature', name:'Sea Surface Temperature (MUR)', fmt:'png' },
+          { id:'BlueMarble_ShadedRelief', name:'Blue Marble', fmt:'jpg' },
+        ],
+        'temp': [
+          { id:'MODIS_Terra_Land_Surface_Temp_Day', name:'Land Surface Temp (Day)', fmt:'png' },
+          { id:'BlueMarble_ShadedRelief', name:'Blue Marble', fmt:'jpg' },
+        ],
+        'glaciers': [ { id:'ASTER_GDEM_Color_Shaded_Relief', name:'ASTER GDEM Relief', fmt:'jpg' } ],
+        'ao': [ { id:'BlueMarble_ShadedRelief', name:'Blue Marble', fmt:'jpg' } ],
+        'nao': [ { id:'BlueMarble_ShadedRelief', name:'Blue Marble', fmt:'jpg' } ],
+        'co2': [ { id:'BlueMarble_ShadedRelief', name:'Blue Marble', fmt:'jpg' } ],
+        'ghg': [ { id:'BlueMarble_ShadedRelief', name:'Blue Marble', fmt:'jpg' } ],
+      };
+
+      let activeGibs = null;
+      function setOverlayFromUI() {
+        const sel = document.getElementById('overlay');
+        const date = document.getElementById('overlayDate').value || 'best';
+        const opt = sel.value;
+        if (activeGibs) { map.removeLayer(activeGibs); activeGibs = null; }
+        const fmt = sel.selectedOptions[0].dataset.fmt || 'jpg';
+        activeGibs = gibsLayer(opt, date, fmt).addTo(map);
+        // Simple legend for temperature/ice-related layers
+        const legend = document.getElementById('legend');
+        const title = document.getElementById('legendTitle');
+        const min = document.getElementById('legendMin');
+        const mid = document.getElementById('legendMid');
+        const max = document.getElementById('legendMax');
+        if (/Temperature|SST/i.test(opt)) {
+          legend.style.display = 'block';
+          title.textContent = 'Temperature Anomaly';
+          min.textContent = 'cold'; mid.textContent = '0'; max.textContent = 'warm';
+        } else if (/Ice/i.test(opt)) {
+          legend.style.display = 'block';
+          title.textContent = 'Sea Ice Concentration';
+          min.textContent = 'low'; mid.textContent = '50%'; max.textContent = 'high';
+        } else {
+          legend.style.display = 'none';
+        }
+        activeGibs.on('tileerror', () => {
+          if (date !== 'best') {
+            map.removeLayer(activeGibs);
+            activeGibs = gibsLayer(opt, 'best', fmt).addTo(map);
+          }
+        });
+      }
+
+      function initOverlayControls() {
+        const list = overlayCatalog[key] || overlayCatalog['co2'];
+        const sel = document.getElementById('overlay');
+        sel.innerHTML = '';
+        for (const item of list) {
+          const o = document.createElement('option');
+          o.value = item.id; o.textContent = item.name; o.dataset.fmt = item.fmt || 'jpg';
+          sel.appendChild(o);
+        }
+        const d = new Date(); d.setDate(d.getDate() - 1);
+        document.getElementById('overlayDate').value = d.toISOString().slice(0,10);
+        sel.addEventListener('change', setOverlayFromUI);
+        document.getElementById('overlayDate').addEventListener('change', setOverlayFromUI);
+        // default to first overlay (temperature for ONI/ocean heat)
+        setOverlayFromUI();
+      }
+
+      function addRegionOverlay(k) {
+        const overlays = [];
+        if (k === 'oni') {
+          const bounds = [[5, -170], [-5, -120]];
+          overlays.push(L.rectangle([[bounds[1][0], bounds[0][1]], [bounds[0][0], bounds[1][1]]], { color:'#e4572e', weight:2, fill:false }));
+          map.setView([0, -145], 3);
+        } else if (k === 'sea_ice') {
+          overlays.push(L.circle([90, 0], { radius: 2223900, color:'#0b63ce', weight:2, fill:false }));
+          map.setView([74, 0], 2);
+        } else if (k === 'ao' || k === 'nao') {
+          map.setView([45, -30], 3);
+        } else if (k === 'ocean_heat') {
+          map.setView([0, 160], 2);
+        } else if (k === 'glaciers') {
+          map.setView([30, 70], 3);
+        } else if (k === 'co2' || k === 'ghg' || k === 'temp') {
+          map.setView([20, 0], 2);
+        }
+        overlays.forEach(o => o.addTo(map));
+      }
+
+      async function loadMeta() {
+        const cat = await fetch('/api/catalog').then(r=>r.json());
+        const m = cat.indicators.find(i => i.key === key) || { name:key, description:'', unit:'' };
+        document.getElementById('title').textContent = `${m.name}`;
+        document.getElementById('desc').textContent = m.description + ' (Inspired by NOAA Climate.gov)';
+      }
+
+      async function loadSeries() {
+        const res = await fetch(`/api/indicators/${encodeURIComponent(key)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const values = data.series.map(p => [p.t, p.v]);
+        if (isBar) {
+          chart.setOption({ series: [{ data: values }] });
+        } else {
+          chart.setOption({ series: [{ data: values }] });
+        }
+      }
+
+      async function runForecast() {
+        const res = await fetch(`/api/forecast/${encodeURIComponent(key)}`);
+        if (!res.ok) return;
+        const f = await res.json();
+        chart.setOption({
+          series: [
+            chart.getOption().series[0],
+            { type:'line', data:f.forecast.map(p=>[p.t,p.v]), showSymbol:false, lineStyle:{type:'dashed', color:'#e4572e'} }
+          ]
+        });
+      }
+
+      const GALLERY = {
+        glaciers: { src:'/static/glacier_retreat.jpg', caption:'Glacier retreat example. Credit: NOAA Climate.gov / NSIDC.' },
+        sea_ice: { src:'/static/sea_ice_minimum.jpg', caption:'Arctic sea ice minimum (illustrative). Credit: NOAA Climate.gov / NSIDC.' },
+        oni: { src:'/static/oni_temp_patterns.jpg', caption:'El Niño vs. La Niña temperature patterns (illustrative).' },
+        ocean_heat: { src:'/static/ocean_heat_trend.jpg', caption:'Ocean heat content trends (illustrative). Credit: NOAA Climate.gov / PMEL.' },
+      };
+
+      function loadGallery() {
+        const g = GALLERY[key];
+        if (!g) return;
+        const img = document.getElementById('galleryImg');
+        const cap = document.getElementById('galleryCaption');
+        img.src = g.src; img.alt = meta.chartTitle; cap.textContent = g.caption;
+      }
+
+      function tryLoadIllustration() {
+        const wrap = document.getElementById('imageWrap');
+        const img = document.getElementById('mapImage');
+        const candidates = [
+          `/static/maps/${key}.jpg`,
+          `/static/maps/${key}.png`,
+          `/static/maps/${key}@2x.jpg`,
+          `/static/maps/${key}@2x.png`,
+          // literal "%402x" filenames must be requested as %2540
+          `/static/maps/${key}%25402x.jpg`,
+          `/static/maps/${key}%25402x.png`
+        ];
+        let i = 0;
+        function next(){
+          if (i >= candidates.length) { // fallback to interactive
+            document.getElementById('mapView').value = 'interactive';
+            showInteractive();
+            return;
+          }
+          img.onerror = () => { i += 1; next(); };
+          img.onload = () => { wrap.style.display = 'block'; document.getElementById('map').style.display = 'none'; };
+          img.src = candidates[i];
+        }
+        next();
+      }
+
+      function showInteractive(){
+        document.getElementById('imageWrap').style.display = 'none';
+        document.getElementById('map').style.display = 'block';
+      }
+
+      document.getElementById('mapView').addEventListener('change', (e)=>{
+        if (e.target.value === 'image') tryLoadIllustration(); else showInteractive();
+      });
+
+      document.getElementById('btn-forecast').addEventListener('click', runForecast);
+      async function init() {
+        // Chart
+        await loadSeries();
+        // Map
+        addRegionOverlay(key);
+        initOverlayControls();
+        // Force default to Illustration and try image first; fallback is in tryLoadIllustration
+        document.getElementById('mapView').value = 'image';
+        tryLoadIllustration();
+      }
+      init();
+      loadMeta();
+      loadGallery();
+    </script>
+  </body>
+</html>
